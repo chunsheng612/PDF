@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>本地 PDF 萬用編輯工具</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <main class="main-wrapper">
+      <header class="topbar glass-panel">
+        <div class="brand-area">
+          <div class="brand-dot"></div>
+          <div>
+            <p class="brand-mini">HTML PDF WORKBENCH</p>
+            <h1 class="brand-title">本地 PDF 萬用編輯工具</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div class="status-pill">方方老師製作</div>
+          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="切換淺色或深色">淺色模式</button>
+        </div>
+      </header>
+
+      <section class="content-area">
+        <article class="intro glass-panel">
+          <p>檔案只在本地瀏覽器記憶體中處理，不上傳伺服器。右側側邊欄切換工具頁。</p>
+          <p>頁碼格式：<code>all</code>、<code>1,3-5,7-end</code>、<code>1-3;4-6;7-end</code>。</p>
+          <p class="author-note">作者：方方老師</p>
+        </article>
+
+        <section id="tool-pages" class="tool-pages">
+          <article class="tool-page glass-panel active" data-page="png">
+            <div class="page-head"><span class="page-badge">AI 批改</span><h2>PDF 轉 PNG</h2></div>
+            <p>把作文掃描 PDF 逐頁轉成 PNG，輸出 ZIP。</p>
+            <form class="tool-form" data-tool="png">
+              <input type="file" name="file" accept="application/pdf" required>
+              <div class="preview-panel" data-preview="single"></div>
+              <label>頁碼 <input name="pages" value="all" placeholder="all"></label>
+              <label>DPI <input name="dpi" type="number" min="72" max="360" value="180"></label>
+              <div class="button-wrap"><button type="submit"><span>轉成 PNG ZIP</span></button></div>
+              <output></output>
+            </form>
+          </article>
+
+          <article class="tool-page glass-panel" data-page="halve">
+            <div class="page-head"><span class="page-badge">切半</span><h2>左右 / 上下切割</h2></div>
+            <p>把每一頁切成兩頁，適合雙頁掃描。</p>
+            <form class="tool-form" data-tool="halve">
+              <input type="file" name="file" accept="application/pdf" required>
+              <div class="preview-panel" data-preview="single"></div>
+              <label>切割方向
+                <select name="direction">
+                  <option value="vertical">左右切割：左半再右半</option>
+                  <option value="horizontal">上下切割：上半再下半</option>
+                </select>
+              </label>
+              <label>輸出順序
+                <select name="order">
+                  <option value="normal">正常</option>
+                  <option value="reverse">反向</option>
+                </select>
+              </label>
+              <div class="button-wrap"><button type="submit"><span>產生切割 PDF</span></button></div>
+              <output></output>
+            </form>
+          </article>
+
+          <article class="tool-page glass-panel" data-page="extract">
+            <div class="page-head"><span class="page-badge">抽頁</span><h2>抽出指定頁面</h2></div>
+            <p>保留指定頁碼輸出新 PDF。</p>
+            <form class="tool-form" data-tool="extract">
+              <input type="file" name="file" accept="application/pdf" required>
+              <div class="preview-panel" data-preview="single"></div>
+              <label>保留頁碼 <input name="pages" required placeholder="1,3-5,7-end"></label>
+              <div class="button-wrap"><button type="submit"><span>抽出頁面</span></button></div>
+              <output></output>
+            </form>
+          </article>
+
+          <article class="tool-page glass-panel" data-page="splitRanges">
+            <div class="page-head"><span class="page-badge">分段</span><h2>依頁碼分隔 PDF</h2></div>
+            <p>例如：1-3;4-6;7-end，輸出 ZIP。</p>
+            <form class="tool-form" data-tool="splitRanges">
+              <input type="file" name="file" accept="application/pdf" required>
+              <div class="preview-panel" data-preview="single"></div>
+              <label>分段範圍 <input name="groups" required placeholder="1-3;4-6;7-end"></label>
+              <div class="button-wrap"><button type="submit"><span>分隔成 ZIP</span></button></div>
+              <output></output>
+            </form>
+          </article>
+
+          <article class="tool-page glass-panel" data-page="splitEvery">
+            <div class="page-head"><span class="page-badge">批次</span><h2>每 N 頁拆一份</h2></div>
+            <p>固定頁數拆分，輸出 ZIP。</p>
+            <form class="tool-form" data-tool="splitEvery">
+              <input type="file" name="file" accept="application/pdf" required>
+              <div class="preview-panel" data-preview="single"></div>
+              <label>每份頁數 <input name="chunk" type="number" min="1" value="1" required></label>
+              <div class="button-wrap"><button type="submit"><span>批次拆分</span></button></div>
+              <output></output>
+            </form>
+          </article>
+
+          <article class="tool-page glass-panel" data-page="merge">
+            <div class="page-head"><span class="page-badge">合併</span><h2>合併多份 PDF</h2></div>
+            <p>先把檔案加入清單，可超過兩份並可移除，再合併。</p>
+            <form class="tool-form" data-tool="merge">
+              <input type="file" name="files" accept="application/pdf" multiple>
+              <div class="inline-actions">
+                <button type="button" class="mini-btn" data-action="merge-add">加入清單</button>
+                <button type="button" class="mini-btn" data-action="merge-clear">清空清單</button>
+              </div>
+              <div class="preview-panel" data-preview="merge"></div>
+              <div class="button-wrap"><button type="submit"><span>合併 PDF</span></button></div>
+              <output></output>
+            </form>
+          </article>
+
+          <article class="tool-page glass-panel" data-page="rotate">
+            <div class="page-head"><span class="page-badge">旋轉</span><h2>旋轉頁面</h2></div>
+            <p>旋轉全部或指定頁面。</p>
+            <form class="tool-form" data-tool="rotate">
+              <input type="file" name="file" accept="application/pdf" required>
+              <div class="preview-panel" data-preview="single"></div>
+              <label>頁碼 <input name="pages" value="all" placeholder="all"></label>
+              <label>角度
+                <select name="degrees">
+                  <option value="90">順時針 90°</option>
+                  <option value="180">180°</option>
+                  <option value="270">順時針 270°</option>
+                  <option value="-90">逆時針 90°</option>
+                </select>
+              </label>
+              <div class="button-wrap"><button type="submit"><span>旋轉 PDF</span></button></div>
+              <output></output>
+            </form>
+          </article>
+
+          <article class="tool-page glass-panel" data-page="delete">
+            <div class="page-head"><span class="page-badge">刪頁</span><h2>刪除指定頁面</h2></div>
+            <p>移除不要的頁面，其餘頁面保持原順序。</p>
+            <form class="tool-form" data-tool="delete">
+              <input type="file" name="file" accept="application/pdf" required>
+              <div class="preview-panel" data-preview="single"></div>
+              <label>刪除頁碼 <input name="pages" required placeholder="2,4-6"></label>
+              <div class="button-wrap"><button type="submit"><span>刪除頁面</span></button></div>
+              <output></output>
+            </form>
+          </article>
+
+          <article class="tool-page glass-panel" data-page="compress">
+            <div class="page-head"><span class="page-badge">壓縮</span><h2>極限壓縮（非圖片化）</h2></div>
+            <p>透過結構重建、物件流與表單扁平化提升壓縮率，不做圖片化轉檔。</p>
+            <form class="tool-form" data-tool="compress">
+              <input type="file" name="file" accept="application/pdf" required>
+              <div class="preview-panel" data-preview="single"></div>
+              <label>壓縮模式
+                <select name="level">
+                  <option value="balanced">平衡壓縮（保留互動表單）</option>
+                  <option value="extreme">極限壓縮（會扁平化表單）</option>
+                </select>
+              </label>
+              <div class="button-wrap"><button type="submit"><span>壓縮 PDF</span></button></div>
+              <output></output>
+            </form>
+          </article>
+
+          <article class="tool-page glass-panel" data-page="textEdit">
+            <div class="page-head"><span class="page-badge">文字修改</span><h2>覆蓋新增文字</h2></div>
+            <p>在指定頁面座標加上新文字（不會自動刪除原文）。可上傳字型支援中文。</p>
+            <form class="tool-form" data-tool="textEdit">
+              <input type="file" name="file" accept="application/pdf" required>
+              <div class="preview-panel" data-preview="single"></div>
+              <label>目標頁碼（從 1 開始） <input name="page" type="number" min="1" value="1" required></label>
+              <label>文字內容 <textarea name="text" rows="4" placeholder="輸入要覆蓋顯示的文字" required></textarea></label>
+              <div class="row-2">
+                <label>X <input name="x" type="number" min="0" value="72"></label>
+                <label>Y <input name="y" type="number" min="0" value="720"></label>
+              </div>
+              <div class="row-2">
+                <label>字級 <input name="size" type="number" min="6" max="96" value="14"></label>
+                <label>顏色
+                  <select name="color">
+                    <option value="0,0,0">黑色</option>
+                    <option value="1,0,0">紅色</option>
+                    <option value="0,0,1">藍色</option>
+                    <option value="0.2,0.2,0.2">深灰</option>
+                  </select>
+                </label>
+              </div>
+              <label>自訂字型（可選 .ttf/.otf，建議中文用） <input type="file" name="font" accept=".ttf,.otf,font/ttf,font/otf"></label>
+              <div class="button-wrap"><button type="submit"><span>產生文字修改 PDF</span></button></div>
+              <output></output>
+            </form>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <aside class="sidebar glass-panel" aria-label="PDF 工具側邊欄">
+      <p class="nav-section-title">PDF 功能</p>
+      <nav class="nav-list" id="tool-nav">
+        <button class="nav-btn active" data-target="png">PDF 轉 PNG</button>
+        <button class="nav-btn" data-target="halve">左右/上下切割</button>
+        <button class="nav-btn" data-target="extract">抽出頁面</button>
+        <button class="nav-btn" data-target="splitRanges">分段拆分</button>
+        <button class="nav-btn" data-target="splitEvery">每 N 頁拆分</button>
+        <button class="nav-btn" data-target="merge">合併 PDF</button>
+        <button class="nav-btn" data-target="rotate">旋轉頁面</button>
+        <button class="nav-btn" data-target="delete">刪除頁面</button>
+        <button class="nav-btn" data-target="compress">壓縮 PDF</button>
+        <button class="nav-btn" data-target="textEdit">文字修改</button>
+      </nav>
+    </aside>
+  </div>
+
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
