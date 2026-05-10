@@ -105,7 +105,7 @@
 
           <article class="tool-page glass-panel" data-page="merge">
             <div class="page-head"><span class="page-badge">合併</span><h2>合併多份 PDF</h2></div>
-            <p>先把檔案加入清單，可超過兩份並可移除，再合併。</p>
+            <p>選擇 PDF 後會自動加入清單，可超過兩份並可移除，再合併。</p>
             <form class="tool-form" data-tool="merge">
               <input type="file" name="files" accept="application/pdf" multiple>
               <div class="inline-actions">
@@ -179,6 +179,7 @@
                 <label>X <input name="x" type="number" min="0" value="72"></label>
                 <label>Y <input name="y" type="number" min="0" value="720"></label>
               </div>
+              <p class="field-hint">可直接點上方預覽圖設定 X/Y 座標。</p>
               <div class="row-2">
                 <label>字級 <input name="size" type="number" min="6" max="96" value="14"></label>
                 <label>顏色
@@ -189,6 +190,11 @@
                     <option value="0.2,0.2,0.2">深灰</option>
                   </select>
                 </label>
+              </div>
+              <label class="checkbox-line"><input type="checkbox" name="cover"> 白底覆蓋原文區域</label>
+              <div class="row-2">
+                <label>覆蓋寬度 <input name="coverWidth" type="number" min="0" value="260"></label>
+                <label>覆蓋高度 <input name="coverHeight" type="number" min="0" value="28"></label>
               </div>
               <label>自訂字型（可選 .ttf/.otf，建議中文用） <input type="file" name="font" accept=".ttf,.otf,font/ttf,font/otf"></label>
               <div class="button-wrap"><button type="submit"><span>產生文字修改 PDF</span></button></div>

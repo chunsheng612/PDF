@@ -259,6 +259,25 @@ label {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.field-hint {
+  margin: -4px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+}
+
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+}
+
+.checkbox-line input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+}
+
 input,
 select,
 textarea,
@@ -376,6 +395,10 @@ body.light-mode input[type="file"]::file-selector-button {
   display: block;
   border-radius: 8px;
   background: var(--preview-canvas-bg);
+}
+
+.tool-form[data-tool="textEdit"] .preview-item canvas {
+  cursor: crosshair;
 }
 
 .preview-name {

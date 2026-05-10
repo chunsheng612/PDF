@@ -40,7 +40,11 @@ async function readBytes(file) {
 }
 
 function parsePages(spec, total, defaultAll = true) {
-  const text = String(spec || "").trim().toLowerCase().replace(/\s+/g, "");
+  const text = String(spec || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[，、]/g, ",")
+    .replace(/\s+/g, "");
   if (!text || text === "all") {
     if (defaultAll) return [...Array(total).keys()];
     throw new Error("請輸入頁碼範圍，例如 1,3-5。");
@@ -75,6 +79,7 @@ function parsePages(spec, total, defaultAll = true) {
 
 function parseGroups(spec, total) {
   const groups = String(spec || "")
+    .replace(/；/g, ";")
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean)
@@ -94,6 +99,17 @@ function download(bytesOrBlob, filename, type = "application/pdf") {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return blob.size;
+}
+
+function setOutput(output, message, isError = false) {
+  output.classList.toggle("error", isError);
+  output.textContent = message;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
 }
 
 async function copySelectedPages(srcDoc, indices) {
@@ -131,7 +147,8 @@ async function renderPdfCanvas(file, scale = 0.35) {
   canvas.height = Math.ceil(viewport.height);
   const ctx = canvas.getContext("2d", { alpha: false });
   await page.render({ canvasContext: ctx, viewport }).promise;
-  return { canvas, pageCount: doc.numPages, viewport };
+  canvas.dataset.pdfScale = String(scale);
+  return { canvas, pageCount: doc.numPages, viewport, scale };
 }
 
 function formatSize(bytes) {
@@ -156,12 +173,33 @@ function bindSinglePreview(form) {
     meta.textContent = "載入中...";
     grid.innerHTML = "";
     try {
-      const { canvas, pageCount } = await renderPdfCanvas(file);
+      const { canvas, pageCount, viewport, scale } = await renderPdfCanvas(file);
       const item = document.createElement("div");
       item.className = "preview-item";
       const name = document.createElement("div");
       name.className = "preview-name";
       name.textContent = `${file.name} | ${pageCount} 頁 | ${formatSize(file.size)}`;
+      if (form.dataset.tool === "textEdit") {
+        form.elements.page.max = String(pageCount);
+        if (!form.elements.y.dataset.userSet) {
+          form.elements.y.value = Math.max(0, Math.round(viewport.height / scale - 72));
+        }
+        form.elements.x.addEventListener("input", () => { form.elements.x.dataset.userSet = "true"; }, { once: true });
+        form.elements.y.addEventListener("input", () => { form.elements.y.dataset.userSet = "true"; }, { once: true });
+        canvas.addEventListener("click", (event) => {
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          const pixelX = (event.clientX - rect.left) * scaleX;
+          const pixelY = (event.clientY - rect.top) * scaleY;
+          const pdfScale = Number(canvas.dataset.pdfScale || 1);
+          form.elements.x.value = Math.round(pixelX / pdfScale);
+          form.elements.y.value = Math.round((canvas.height - pixelY) / pdfScale);
+          form.elements.x.dataset.userSet = "true";
+          form.elements.y.dataset.userSet = "true";
+          name.textContent = `${file.name} | ${pageCount} 頁 | 座標 X ${form.elements.x.value}, Y ${form.elements.y.value}`;
+        });
+      }
       item.append(canvas, name);
       grid.append(item);
       meta.textContent = "已載入";
@@ -178,7 +216,7 @@ async function renderMergePreview(form) {
   const { meta, grid } = createPreviewSkeleton(panel, "合併清單預覽");
   if (!mergeQueue.length) {
     meta.textContent = "0 份";
-    grid.innerHTML = '<p class="preview-empty">目前清單為空，請先加入檔案。</p>';
+    grid.innerHTML = '<p class="preview-empty">目前清單為空，選擇 PDF 後會自動加入。</p>';
     return;
   }
   meta.textContent = `${mergeQueue.length} 份`;
@@ -237,13 +275,23 @@ function bindMergeControls(form) {
   const addBtn = form.querySelector('[data-action="merge-add"]');
   const clearBtn = form.querySelector('[data-action="merge-clear"]');
 
-  addBtn?.addEventListener("click", async () => {
+  const addSelectedFiles = async () => {
     const selected = [...(fileInput.files || [])];
     if (!selected.length) return;
-    for (const file of selected) mergeQueue.push(file);
+    const existing = new Set(mergeQueue.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+    for (const file of selected) {
+      const key = `${file.name}:${file.size}:${file.lastModified}`;
+      if (!existing.has(key)) {
+        mergeQueue.push(file);
+        existing.add(key);
+      }
+    }
     fileInput.value = "";
     await renderMergePreview(form);
-  });
+  };
+
+  fileInput.addEventListener("change", addSelectedFiles);
+  addBtn?.addEventListener("click", addSelectedFiles);
 
   clearBtn?.addEventListener("click", async () => {
     mergeQueue.length = 0;
@@ -256,15 +304,18 @@ function bindMergeControls(form) {
 
 async function pdfToPng(form) {
   const file = oneFile(form);
+  const output = form.querySelector("output");
   const data = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: data.slice(0) }).promise;
   const indices = parsePages(form.elements.pages.value, pdf.numPages);
-  const dpi = Math.max(72, Math.min(Number(form.elements.dpi.value || 180), 360));
+  const dpi = clampNumber(form.elements.dpi.value, 72, 360, 180);
   const scaleBase = dpi / 72;
   const zip = new JSZip();
   const stem = baseName(file);
 
-  for (const index of indices) {
+  for (let i = 0; i < indices.length; i += 1) {
+    const index = indices[i];
+    if (output) setOutput(output, `轉換 PNG 中... ${i + 1}/${indices.length}`);
     const page = await pdf.getPage(index + 1);
     const viewport = page.getViewport({ scale: scaleBase });
     const canvas = document.createElement("canvas");
@@ -273,6 +324,7 @@ async function pdfToPng(form) {
     canvas.height = Math.ceil(viewport.height);
     await page.render({ canvasContext: ctx, viewport }).promise;
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("瀏覽器無法建立 PNG，請降低 DPI 後再試。");
     zip.file(`${stem}_page_${String(index + 1).padStart(3, "0")}.png`, blob);
   }
 
@@ -362,17 +414,20 @@ async function splitEvery(form) {
 async function mergePdfs(form) {
   const selected = [...(form.elements.files.files || [])];
   const files = mergeQueue.length ? [...mergeQueue] : selected;
-  if (files.length < 2) throw new Error("合併至少需要 2 個 PDF。請先加入清單。\n");
+  const output = form.querySelector("output");
+  if (files.length < 2) throw new Error("合併至少需要 2 個 PDF。");
 
   const out = await PDFDocument.create();
-  for (const file of files) {
+  for (let i = 0; i < files.length; i += 1) {
+    const file = files[i];
+    if (output) setOutput(output, `合併中... ${i + 1}/${files.length}`);
     const src = await PDFDocument.load(await readBytes(file));
     const indices = [...Array(src.getPageCount()).keys()];
     const copied = await out.copyPages(src, indices);
     copied.forEach((page) => out.addPage(page));
   }
 
-  return { payload: await out.save({ useObjectStreams: true }), filename: "merged.pdf" };
+  return { payload: await out.save({ useObjectStreams: true }), filename: `merged_${files.length}_files.pdf` };
 }
 
 async function rotatePages(form) {
@@ -461,15 +516,24 @@ async function compressPdf(form) {
   const best = variants[0];
   const finalSize = best.bytes.length;
   const ratio = ((1 - finalSize / originalSize) * 100).toFixed(2);
-  const note = finalSize < originalSize
+  const didShrink = finalSize < originalSize;
+  const note = didShrink
     ? `壓縮成功：${formatSize(originalSize)} -> ${formatSize(finalSize)}（-${ratio}%）`
-    : `未能縮小：原始 ${formatSize(originalSize)}，最佳結果 ${formatSize(finalSize)}。此檔案可能已接近最佳化。`;
+    : `未能縮小：原始 ${formatSize(originalSize)}，最佳結果 ${formatSize(finalSize)}。已下載原檔副本，避免檔案變大。`;
 
   return {
-    payload: best.bytes,
-    filename: `${baseName(file)}_compressed_${best.name}.pdf`,
+    payload: didShrink ? best.bytes : inputBytes,
+    filename: didShrink ? `${baseName(file)}_compressed_${best.name}.pdf` : `${baseName(file)}_original_best.pdf`,
     note,
   };
+}
+
+function hasNonWinAnsiText(text) {
+  return /[^\u0009\u000a\u000d\u0020-\u007e\u00a0-\u00ff]/.test(text);
+}
+
+function resolveFontkit() {
+  return window.fontkit || window.Fontkit;
 }
 
 async function textEditPdf(form) {
@@ -486,24 +550,49 @@ async function textEditPdf(form) {
   let font;
   const customFont = form.elements.font.files?.[0];
   if (customFont) {
-    if (!window.fontkit) throw new Error("字型引擎尚未載入，無法使用自訂字型。");
-    src.registerFontkit(window.fontkit);
+    const fontkit = resolveFontkit();
+    if (!fontkit) throw new Error("字型引擎尚未載入，無法使用自訂字型。");
+    src.registerFontkit(fontkit);
     const fontBytes = await customFont.arrayBuffer();
     font = await src.embedFont(fontBytes, { subset: true });
   } else {
+    if (hasNonWinAnsiText(text)) throw new Error("內建字型不支援中文。請上傳 .ttf 或 .otf 中文字型後再產生。");
     font = await src.embedFont(StandardFonts.Helvetica);
   }
 
   const [r, g, b] = String(form.elements.color.value || "0,0,0").split(",").map(Number);
   const page = src.getPage(pageIndex);
-  page.drawText(text, {
-    x: Number(form.elements.x.value || 72),
-    y: Number(form.elements.y.value || 720),
-    size: Number(form.elements.size.value || 14),
-    font,
-    color: rgb(r, g, b),
-    lineHeight: Number(form.elements.size.value || 14) * 1.35,
-  });
+  const size = clampNumber(form.elements.size.value, 6, 96, 14);
+  const lineHeight = size * 1.35;
+  const x = Math.max(0, Number(form.elements.x.value || 72));
+  const y = Math.max(0, Number(form.elements.y.value || 720));
+  const lines = text.split(/\r?\n/);
+
+  if (form.elements.cover.checked) {
+    const coverWidth = Math.max(0, Number(form.elements.coverWidth.value || 260));
+    const coverHeight = Math.max(0, Number(form.elements.coverHeight.value || lineHeight * lines.length));
+    if (coverWidth > 0 && coverHeight > 0) {
+      page.drawRectangle({
+        x,
+        y: y - coverHeight + size,
+        width: coverWidth,
+        height: coverHeight,
+        color: rgb(1, 1, 1),
+        opacity: 0.96,
+      });
+    }
+  }
+
+  for (let i = 0; i < lines.length; i += 1) {
+    page.drawText(lines[i], {
+      x,
+      y: y - i * lineHeight,
+      size,
+      font,
+      color: rgb(r, g, b),
+      lineHeight,
+    });
+  }
 
   return {
     payload: await src.save({ useObjectStreams: true }),
@@ -533,23 +622,24 @@ for (const form of forms) {
     const tool = form.dataset.tool;
     const output = form.querySelector("output");
     const button = form.querySelector('.button-wrap button[type="submit"]');
-    output.classList.remove("error");
-    output.textContent = "處理中...";
+    setOutput(output, "處理中...");
     button.disabled = true;
     try {
       assertLibraries(tool);
       const result = await handlers[tool](form);
       const size = download(result.payload, result.filename, result.type || "application/pdf");
-      output.textContent = result.note
-        ? `${result.note} | 已下載 ${result.filename}`
-        : `完成，已下載 ${result.filename}（${(size / 1024 / 1024).toFixed(2)} MB）`;
+      setOutput(
+        output,
+        result.note
+          ? `${result.note} | 已下載 ${result.filename}`
+          : `完成，已下載 ${result.filename}（${formatSize(size)}）`
+      );
       if (tool === "merge") {
         mergeQueue.length = 0;
         await renderMergePreview(form);
       }
     } catch (error) {
-      output.classList.add("error");
-      output.textContent = error.message || "處理失敗";
+      setOutput(output, error.message || "處理失敗", true);
     } finally {
       button.disabled = false;
     }
